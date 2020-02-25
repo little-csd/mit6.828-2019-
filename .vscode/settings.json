@@ -1,0 +1,24 @@
+{
+    "files.associations": {
+        "fs.h": "c",
+        "proc.h": "c",
+        "types.h": "c",
+        "riscv.h": "c",
+        "user.h": "c",
+        "stat.h": "c",
+        "tensor": "c",
+        "fcntl.h": "c",
+        "spinlock.h": "c",
+        "memlayout.h": "c",
+        "param.h": "c",
+        "defs.h": "c",
+        "date.h": "c",
+        "array": "c",
+        "hash_map": "c",
+        "hash_set": "c",
+        "bitset": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "utility": "c"
+    }
+}
