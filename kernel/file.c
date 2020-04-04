@@ -16,7 +16,8 @@
 struct devsw devsw[NDEV];
 struct {
   struct spinlock lock;
-  struct file file[NFILE];
+  struct flist* list;
+  // struct file file[NFILE];
 } ftable;
 
 void
@@ -29,18 +30,24 @@ fileinit(void)
 struct file*
 filealloc(void)
 {
-  struct file *f;
+  // struct file *f;
 
+  struct flist* f;
   acquire(&ftable.lock);
-  for(f = ftable.file; f < ftable.file + NFILE; f++){
-    if(f->ref == 0){
-      f->ref = 1;
-      release(&ftable.lock);
-      return f;
-    }
-  }
+  f = (struct flist*) bd_malloc(sizeof(struct flist));
+  memset(f, 0, sizeof(struct flist));
+  f->nxt = ftable.list;
+  ftable.list = f;
+  f->payload.ref = 1;
+  // for(f = ftable.file; f < ftable.file + NFILE; f++){
+  //   if(f->ref == 0){
+  //     f->ref = 1;
+  //     release(&ftable.lock);
+  //     return f;
+  //   }
+  // }
   release(&ftable.lock);
-  return 0;
+  return &(f->payload);
 }
 
 // Increment ref count for file f.
@@ -72,7 +79,19 @@ fileclose(struct file *f)
   f->ref = 0;
   f->type = FD_NONE;
   release(&ftable.lock);
-
+  struct flist* pre = ftable.list;
+  if (&(pre->payload) == f) {
+      ftable.list = pre->nxt;
+      bd_free(pre);
+  } else {
+      struct flist* nxt = ftable.list;
+      while (&(nxt->payload) != f) {
+          pre = nxt;
+          nxt = nxt->nxt;
+      }
+      pre->nxt = nxt->nxt;
+      bd_free(nxt);
+  }
   if(ff.type == FD_PIPE){
     pipeclose(ff.pipe, ff.writable);
   } else if(ff.type == FD_INODE || ff.type == FD_DEVICE){
