@@ -105,6 +105,9 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
     
+  if(strncmp(p->name, "init", 4) == 0)
+    vmprint(pagetable);
+  
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
@@ -112,6 +115,7 @@ exec(char *path, char **argv)
   p->tf->epc = elf.entry;  // initial program counter = main
   p->tf->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
+
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

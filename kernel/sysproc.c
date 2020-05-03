@@ -42,13 +42,21 @@ uint64
 sys_sbrk(void)
 {
   int addr;
+  int newaddr;
   int n;
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  struct proc* p = myproc();
+  addr = p->sz;
+  newaddr = PGROUNDUP(addr + n);
+  if (newaddr < PGSIZE || newaddr >= MAXVA) {
+    exit(-1);
+  }
+  if (newaddr < addr) {
+    uvmdealloc(p->pagetable, addr, newaddr);
+  }
+  p->sz = newaddr;
   return addr;
 }
 

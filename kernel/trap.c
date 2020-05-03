@@ -67,15 +67,33 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 15 || r_scause() == 13) {
+    uint64 cause_vir = r_stval();
+    // printf("Page fault in %p\n", cause_vir);
+    if (cause_vir >= p->sz || cause_vir <= p->tf->sp) {
+      p->killed = 1;
+    } else {
+      uint64 pg_base = PGROUNDDOWN(cause_vir);
+      void* mem = kalloc();
+      if (mem == 0) p->killed = 1;
+      else {
+        memset(mem, 0, PGSIZE);
+        if ((mappages(p->pagetable, pg_base, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_X|PTE_U)) != 0) {
+          kfree(mem);
+          p->killed = 1;
+        }
+      }
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     p->killed = 1;
   }
 
-  if(p->killed)
+  if(p->killed){
     exit(-1);
-
+  }
+  
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
