@@ -67,6 +67,13 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 0xd || r_scause() == 0xf) {
+    uint64 vir = r_stval();
+    uint64 vir_base = PGROUNDDOWN(vir);
+    if (vir >= p->sz) p->killed = -1;
+    else if (uvmonwrite(p->pagetable, vir_base)) {
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
