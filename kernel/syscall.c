@@ -83,6 +83,28 @@ argstr(int n, char *buf, int max)
   return fetchstr(addr, buf, max);
 }
 
+uint64
+sys_sigalarm() {
+  uint64 handler;
+  int ticks;
+  if (argint(0, &ticks) < 0 || argaddr(1, &handler) < 0) {
+    return -1;
+  }
+  struct proc* p = myproc();
+  p->handler = handler;
+  p->ticks_max = ticks;
+  // printf("%d %p\n", ticks, handler);
+  return 0;
+}
+
+uint64
+sys_sigreturn() {
+  struct proc* p = myproc();
+  *(p->tf) = p->last_tf;
+  p->in_handler = 0;
+  return 0;
+}
+
 extern uint64 sys_chdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
@@ -131,6 +153,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_ntas]    sys_ntas,
 [SYS_crash]   sys_crash,
+[SYS_sigalarm]  sys_sigalarm,
+[SYS_sigreturn] sys_sigreturn,
 };
 
 void
