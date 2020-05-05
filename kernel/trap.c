@@ -71,7 +71,10 @@ usertrap(void)
     uint64 vir = r_stval();
     uint64 vir_base = PGROUNDDOWN(vir);
     if (vir >= p->sz) p->killed = 1;
-    else if (uvmonwrite(p->pagetable, vir_base)) {
+    else if (vir_base == PGROUNDDOWN(p->tf->sp)-PGSIZE) {
+      p->killed = 1;
+    }
+    else if (uvmonwrite(p->pagetable, vir_base) != 0) {
       p->killed = 1;
     }
   } else {
