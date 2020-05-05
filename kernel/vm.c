@@ -163,7 +163,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V && !(*pte & PTE_C))
+    if((*pte & PTE_V) && !(*pte & PTE_C))
       panic("remap");
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
@@ -348,14 +348,18 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
  */
 int
 uvmonwrite(pagetable_t pagetable, uint64 va) {
+  // add this to avoid unmapped addresss
+  if (va >= MAXVA) return 0;
+
   va = PGROUNDDOWN(va);
   pte_t* pte = walk(pagetable, va, 0);
-  if (pte == 0 || !(*pte & PTE_C)) return -1;
+  if (!pte || !(*pte & PTE_V)) return -1;
+  if (!(*pte & PTE_C)) return 0;
   char* mem = kalloc();
   if (mem == 0) return -1;
-  *pte |= PTE_W;
-  *pte &= ~PTE_C;
   uint flags = PTE_FLAGS(*pte);
+  flags |= PTE_W;
+  flags &= ~PTE_C;
   if (mappages(pagetable, va, PGSIZE, (uint64)mem, flags) != 0) {
     kfree(mem);
     return -1;
@@ -389,8 +393,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if (uvmonwrite(pagetable, va0)) {
+      printf("error on uvmonwirte\n");
+      return -1;
+    }
     pa0 = walkaddr(pagetable, va0);
-    uvmonwrite(pagetable, va0);
     if(pa0 == 0)
       return -1;
     n = PGSIZE - (dstva - va0);

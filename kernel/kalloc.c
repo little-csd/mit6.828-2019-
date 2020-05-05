@@ -18,7 +18,7 @@ struct run {
   struct run *next;
 };
 
-#define MAXPAGES 128*1024
+#define MAXPAGES (128*1024)
 struct {
   struct spinlock lock;
   struct run *freelist;
@@ -43,9 +43,9 @@ freerange(void *pa_start, void *pa_end)
 {
   char* p;
   kref.counts = (char*)PGROUNDUP((uint64)pa_start);
-  p = kref.counts + MAXPAGES;
-  kref.base = p;
-  memset(kref.counts, 0, MAXPAGES);
+  kref.base = kref.counts + MAXPAGES;
+  p = kref.base;
+  memset(kref.counts, 1, MAXPAGES);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
 }
@@ -63,22 +63,22 @@ kfree(void *pa)
     panic("kfree");
 
   r = (struct run*)pa;
-  int _free = 0;
 
   acquire(&kref.lock);
   int pos = ((char*)pa-kref.base)/PGSIZE;
-  if (kref.counts[pos] > 1) _free = 1;
   kref.counts[pos]--;
+  if (kref.counts[pos]) {
+    release(&kref.lock);
+    return;
+  }
   release(&kref.lock);
 
-  if (_free) {
-    acquire(&kmem.lock);
-    r->next = kmem.freelist;
-    kmem.freelist = r;
-    release(&kmem.lock);
-    // Fill with junk to catch dangling refs.
-    memset(pa, 1, PGSIZE);
-  }  
+  // Fill with junk to catch dangling refs.
+  memset(pa, 1, PGSIZE);
+  acquire(&kmem.lock);
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  release(&kmem.lock);    
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -97,11 +97,11 @@ kalloc(void)
   release(&kmem.lock);
 
   if(r) {
+    memset((char*)r, 5, PGSIZE); // fill with junk
     acquire(&kref.lock);
     int pos = ((char*)r-kref.base)/PGSIZE;
-    kref.counts[pos] = 1;
+    kref.counts[pos]++;
     release(&kref.lock);
-    memset((char*)r, 5, PGSIZE); // fill with junk
   }
   return (void*)r;
 }

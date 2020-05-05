@@ -70,7 +70,7 @@ usertrap(void)
   } else if (r_scause() == 0xd || r_scause() == 0xf) {
     uint64 vir = r_stval();
     uint64 vir_base = PGROUNDDOWN(vir);
-    if (vir >= p->sz) p->killed = -1;
+    if (vir >= p->sz) p->killed = 1;
     else if (uvmonwrite(p->pagetable, vir_base)) {
       p->killed = 1;
     }
