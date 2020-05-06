@@ -44,7 +44,6 @@ void test0()
       exit(-1);
     }
   }
-
   for(int i = 0; i < NCHILD; i++){
     wait(0);
   }
