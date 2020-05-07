@@ -483,3 +483,24 @@ sys_pipe(void)
   return 0;
 }
 
+uint64
+sys_mmap(void) {
+    uint64 addr;
+    int len, prot, flags, fd, offset;
+    
+    if (argaddr(0,&addr) < 0 || argint(1,&len) < 0 || argint(2,&prot) < 0
+    || argint(3,&flags) < 0 || argint(4,&fd) < 0 || argint(5,&offset) < 0) {
+        return -1;
+    }
+    return (uint64)mmap((void*)addr, len, prot, flags, fd, offset);
+}
+
+uint64
+sys_munmap(void) {
+    uint64 addr;
+    int len;
+    if (argaddr(0,&addr) < 0 || argint(1,&len) < 0) {
+        return -1;
+    }
+    return munmap((void*)addr, len);
+}

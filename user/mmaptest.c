@@ -38,6 +38,7 @@ _v1(char *p)
 {
   int i;
   for (i = 0; i < PGSIZE*2; i++) {
+    // printf("mmaptest: %d\n", i);
     if (i < PGSIZE + (PGSIZE/2)) {
       if (p[i] != 'A') {
         printf("mismatch at %d, wanted 'A', got 0x%x\n", i, p[i]);
@@ -115,6 +116,7 @@ mmap_test(void)
   _v1(p);
   if (munmap(p, PGSIZE*2) == -1)
     err("munmap (1)");
+  // printf("Finish part I\n");
 
   // should be able to map file opened read-only with private writable
   // mapping
@@ -128,6 +130,7 @@ mmap_test(void)
     p[i] = 'Z';
   if (munmap(p, PGSIZE*2) == -1)
     err("munmap (2)");
+  // printf("Finish part II\n");
 
   // check that mmap doesn't allow read/write mapping of a
   // file opened read-only.
@@ -159,6 +162,8 @@ mmap_test(void)
   // unmap just the first two of three pages of mapped memory.
   if (munmap(p, PGSIZE*2) == -1)
     err("munmap (3)");
+  
+  // printf("Finish part III\n");
 
   // check that the writes to the mapped memory were
   // written to the file.
@@ -178,6 +183,7 @@ mmap_test(void)
   if (munmap(p+PGSIZE*2, PGSIZE) == -1)
     err("munmap (4)");
 
+  // printf("Finish part IV\n");
   //
   // mmap two files at the same time.
   //

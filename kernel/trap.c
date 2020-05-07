@@ -3,8 +3,11 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "file.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -70,6 +73,42 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 0xd || r_scause() == 0xf) {
+    uint64 vir = r_stval();
+    uint64 vir_base = PGROUNDDOWN(vir);
+    struct vma* r = p->vmhead;
+    while (r) {
+      if (vir >= r->addr && vir < r->addr + r->len) {
+        // printf("User trap found!\n");
+        void* mem = kalloc();
+        if (!mem) {
+          p->killed = 1;
+          printf("usertrap: allocate physical memory failed!\n");
+          break;
+        }
+        // printf("Vir addr: %p\n", vir);
+        // printf("Physical memoty %p\n", mem);
+        if (mappages(p->pagetable, vir_base, PGSIZE, (uint64)mem, r->prot)) {
+          p->killed = 1;
+          printf("usertrap: mappages error!\n");
+          break;
+        }
+        // if (!walkaddr(p->pagetable, vir)) {
+        //   printf("Mappages error!\n");
+        //   p->killed = 1;
+        //   break;
+        // }
+        // printf("After mappages\n");
+        int offset = vir_base - r->addr;
+        ilock(r->f->ip);
+        int n = readi(r->f->ip, 0, (uint64)mem, offset, PGSIZE);
+        iunlock(r->f->ip);
+        memset(mem+n, 0, PGSIZE-n);
+        break;
+      }
+      r = r->next;
+    }
+    if (!r) panic("usertrap: vma not found!\n");
   } else {
     printf("usertrap(): unexpected scause %p (%s) pid=%d\n", r_scause(), scause_desc(r_scause()), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

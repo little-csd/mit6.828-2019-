@@ -123,6 +123,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->vmhead = 0;
   return p;
 }
 
@@ -281,6 +282,15 @@ fork(void)
 
   pid = np->pid;
 
+  struct vma* r = p->vmhead;
+  np->vmhead = 0;
+  while (r) {
+    struct vma* nr = copyvma(r);
+    nr->next = np->vmhead;
+    np->vmhead = nr;
+    r = r->next;
+  }
+
   np->state = RUNNABLE;
 
   release(&np->lock);
@@ -325,6 +335,13 @@ exit(int status)
   if(p == initproc)
     panic("init exiting");
 
+  struct vma* r = p->vmhead;
+  while (r) {
+    munmap((void*)(r->addr), r->len);
+    r = p->vmhead;
+  }
+
+  // printf("Exit free end!\n");
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd]){
