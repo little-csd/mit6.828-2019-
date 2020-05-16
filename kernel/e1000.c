@@ -21,6 +21,9 @@ static volatile uint32 *regs;
 
 struct spinlock e1000_lock;
 
+// #define DEBUG
+void print(struct mbuf*);
+
 // called by pci_init().
 // xregs is the memory address at which the
 // e1000's registers are mapped.
@@ -86,6 +89,7 @@ e1000_init(uint32 *xregs)
     E1000_RCTL_SZ_2048 |             // 2048-byte rx buffers
     E1000_RCTL_SECRC;                // strip CRC
   
+  initlock(&e1000_lock, "e1000");
   // ask e1000 for receive interrupts.
   regs[E1000_RDTR] = 0; // interrupt after every received packet (no timer)
   regs[E1000_RADV] = 0; // interrupt after every packet (no timer)
@@ -102,6 +106,32 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+  // printf("e1000_transmit\n");
+  acquire(&e1000_lock);
+  int pos = regs[E1000_TDT];
+  if (pos > TX_RING_SIZE) {
+    printf("Transmit: overflow!\n");
+    goto err_transmit;
+  }
+  struct tx_desc* desc = tx_ring + pos;
+  if (!(desc->status & E1000_TXD_STAT_DD)) {
+    printf("Transmit: status error!\n");
+    goto err_transmit;
+  }
+  struct mbuf *last = tx_mbufs[pos];
+  if (last) {
+    mbuffree(last);
+  }
+  print(m);
+  tx_mbufs[pos] = m;
+  desc->addr = (uint64) m->head;
+  desc->length = m->len;
+  desc->cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+  regs[E1000_TDT] = (pos+1)%TX_RING_SIZE;
+  release(&e1000_lock);
+  return 0;
+err_transmit:
+  release(&e1000_lock);
   return -1;
 }
 
@@ -114,6 +144,27 @@ e1000_recv(void)
   // Check for packets that have arrived from the e1000
   // Create and deliver an mbuf for each packet (using net_rx()).
   //
+  // printf("e1000_recv\n");
+  acquire(&e1000_lock);
+  int pos = (regs[E1000_RDT] + 1) % RX_RING_SIZE;
+  struct rx_desc* desc = rx_ring + pos;
+  while (desc->status & E1000_RXD_STAT_DD) {
+    struct mbuf* m = rx_mbufs[pos];
+    mbufput(m, desc->length);
+    
+    rx_mbufs[pos] = mbufalloc(0);
+    desc->addr = (uint64) rx_mbufs[pos]->head;
+    desc->length = rx_mbufs[pos]->len;
+    desc->status = 0;
+    regs[E1000_RDT] = pos;
+    pos = (pos + 1) % RX_RING_SIZE;
+    desc = rx_ring + pos;
+    release(&e1000_lock);
+    print(m);
+    net_rx(m);
+    acquire(&e1000_lock);
+  }
+  release(&e1000_lock);
 }
 
 void
@@ -124,4 +175,19 @@ e1000_intr(void)
   // without this the e1000 won't raise any
   // further interrupts.
   regs[E1000_ICR];
+}
+
+void
+print(struct mbuf* m) {
+#ifdef DEBUG
+  printf("Address: %p, len = %d\n", m->head, m->len);
+  printf("%p:  ", 0);
+  for (int i = 0; i < m->len; i += 8) {
+    if (i > 0 && !(i%16)) {
+      printf("\n%p:  ", i);
+    }
+    printf("%p ", *((uint64*)(m->head+i)));
+  }
+  printf("\n");
+#endif
 }

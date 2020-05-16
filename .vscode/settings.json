@@ -1,0 +1,24 @@
+{
+    "files.associations": {
+        "syscall.h": "c",
+        "memlayout.h": "c",
+        "defs.h": "c",
+        "riscv.h": "c",
+        "fs.h": "c",
+        "user.h": "c",
+        "stat.h": "c",
+        "types.h": "c",
+        "fcntl.h": "c",
+        "param.h": "c",
+        "proc.h": "c",
+        "spinlock.h": "c",
+        "file.h": "c",
+        "sleeplock.h": "c",
+        "random": "cpp",
+        "memory": "c",
+        "condition_variable": "c",
+        "mutex": "c",
+        "string_view": "c",
+        "tuple": "c"
+    }
+}
