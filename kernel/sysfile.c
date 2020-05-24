@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "buf.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -283,6 +284,29 @@ create(char *path, short type, short major, short minor)
   return ip;
 }
 
+static int open_count = 0;
+struct inode*
+recur_open(struct inode* ip) {
+  if (open_count >= 10) {
+    printf("Cycle encountered\n");
+    return 0;
+  }
+  // printf("%d\n", ip->type);
+  char path[MAXPATH];
+  readi(ip, 0, (uint64)path, 0, MAXPATH);
+  iunlockput(ip);
+  // printf("recur_open: %s\n", path);
+  ip = namei(path);
+  if (ip == 0) return 0;
+  ilock(ip);
+  if (ip->type == T_SYMLINK) {
+    open_count += 1;
+    return recur_open(ip);
+  } else {
+    return ip;
+  }
+}
+
 uint64
 sys_open(void)
 {
@@ -308,11 +332,20 @@ sys_open(void)
       end_op(ROOTDEV);
       return -1;
     }
+    // printf("sys_open: %s, ref: %d\n", path, ip->ref);
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
       iunlockput(ip);
       end_op(ROOTDEV);
       return -1;
+    }
+    if (ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)) {
+      open_count = 0;
+      ip = recur_open(ip);
+      if (ip == 0) {
+        end_op(ROOTDEV);
+        return -1;
+      }
     }
   }
 
@@ -483,3 +516,23 @@ sys_pipe(void)
   return 0;
 }
 
+uint64
+sys_symlink(void) {
+  char path[MAXPATH];
+  char target[MAXPATH];
+  if (argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0) {
+    return -1;
+  }
+
+  begin_op(ROOTDEV);
+  struct inode* ip = create(path, T_SYMLINK, 0, 0);
+  if (ip == 0) {
+    printf("sys_symlink failed\n");
+    end_op(ROOTDEV);
+    return -1;
+  }
+  writei(ip, 0, (uint64)target, 0, MAXPATH);
+  iunlockput(ip);
+  end_op(ROOTDEV);
+  return 0;
+}
